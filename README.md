@@ -1,0 +1,1 @@
+ofxHvcP2 is made for OMRON HVC-P2.
