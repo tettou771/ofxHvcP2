@@ -120,6 +120,10 @@ public:
 	typedef vector<Face> Faces;
 
 	// set active detection
+private:
+	void setExecFlag(INT32, bool);
+	bool getExecFlag(INT32);
+public:
 	void setActiveBody(bool enable);
 	void setActiveHand(bool enable);
 	void setActiveFace(bool enable);
@@ -130,6 +134,17 @@ public:
 	void setActiveBlink(bool enable);
 	void setActiveExpression(bool enable);
 	void setImageSize(ImageSize imageSize);
+
+	bool getActiveBody();
+	bool getActiveHand();
+	bool getActiveFace();
+	bool getActiveDirection();
+	bool getActiveAge();
+	bool getActiveGender();
+	bool getActiveGaze();
+	bool getActiveBlink();
+	bool getActiveExpression();
+	ImageSize getImageSize();
 	void setActiveDebugPrint(bool enable);
 
 	// getter

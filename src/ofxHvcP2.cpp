@@ -324,57 +324,43 @@ void ofxHvcP2::makeCapturedImage() {
 	capture.setFromPixels(capturePixels);
 }
 
-void ofxHvcP2::setActiveBody(bool enable) {
-	if (enable) execFlag = execFlag | HVC_ACTIV_BODY_DETECTION;
-	else execFlag = execFlag & (~HVC_ACTIV_BODY_DETECTION);
+void ofxHvcP2::setExecFlag(INT32 flag, bool enable) {
+	if (enable) execFlag = execFlag | flag;
+	else execFlag = execFlag & (~flag);
 }
 
-void ofxHvcP2::setActiveHand(bool enable) {
-	if (enable) execFlag = execFlag | HVC_ACTIV_HAND_DETECTION;
-	else execFlag = execFlag & (~HVC_ACTIV_HAND_DETECTION);
+bool ofxHvcP2::getExecFlag(INT32 flag) {
+	return (execFlag & flag) == flag;
 }
 
-void ofxHvcP2::setActiveFace(bool enable) {
-	if (enable) execFlag = execFlag | HVC_ACTIV_FACE_DETECTION;
-	else execFlag = execFlag & (~HVC_ACTIV_FACE_DETECTION);
-}
-
-void ofxHvcP2::setActiveDirection(bool enable) {
-	if (enable) execFlag = execFlag | HVC_ACTIV_FACE_DIRECTION;
-	else execFlag = execFlag & (~HVC_ACTIV_FACE_DIRECTION);
-}
-
-void ofxHvcP2::setActiveAge(bool enable) {
-	if (enable) execFlag = execFlag | HVC_ACTIV_AGE_ESTIMATION;
-	else execFlag = execFlag & (~HVC_ACTIV_AGE_ESTIMATION);
-}
-
-void ofxHvcP2::setActiveGender(bool enable) {
-	if (enable) execFlag = execFlag | HVC_ACTIV_GENDER_ESTIMATION;
-	else execFlag = execFlag & (~HVC_ACTIV_GENDER_ESTIMATION);
-}
-
-void ofxHvcP2::setActiveGaze(bool enable) {
-	if (enable) execFlag = execFlag | HVC_ACTIV_GAZE_ESTIMATION;
-	else execFlag = execFlag & (~HVC_ACTIV_GAZE_ESTIMATION);
-}
-
-void ofxHvcP2::setActiveBlink(bool enable) {
-	if (enable) execFlag = execFlag | HVC_ACTIV_BLINK_ESTIMATION;
-	else execFlag = execFlag & (~HVC_ACTIV_BLINK_ESTIMATION);
-}
-
-void ofxHvcP2::setActiveExpression(bool enable) {
-	if (enable) execFlag = execFlag | HVC_ACTIV_EXPRESSION_ESTIMATION;
-	else execFlag = execFlag & (~HVC_ACTIV_EXPRESSION_ESTIMATION);
-}
-
+void ofxHvcP2::setActiveBody(bool enable) { setExecFlag(HVC_ACTIV_BODY_DETECTION, enable); }
+void ofxHvcP2::setActiveHand(bool enable) { setExecFlag(HVC_ACTIV_HAND_DETECTION, enable); }
+void ofxHvcP2::setActiveFace(bool enable) { setExecFlag(HVC_ACTIV_FACE_DETECTION, enable); }
+void ofxHvcP2::setActiveDirection(bool enable) {	setExecFlag(HVC_ACTIV_FACE_DIRECTION, enable);}
+void ofxHvcP2::setActiveAge(bool enable) {	setExecFlag(HVC_ACTIV_AGE_ESTIMATION, enable);}
+void ofxHvcP2::setActiveGender(bool enable) {	setExecFlag(HVC_ACTIV_GENDER_ESTIMATION, enable);}
+void ofxHvcP2::setActiveGaze(bool enable) {	setExecFlag(HVC_ACTIV_GAZE_ESTIMATION, enable);}
+void ofxHvcP2::setActiveBlink(bool enable) {	setExecFlag(HVC_ACTIV_BLINK_ESTIMATION, enable);}
+void ofxHvcP2::setActiveExpression(bool enable) {	setExecFlag(HVC_ACTIV_EXPRESSION_ESTIMATION, enable);}
 void ofxHvcP2::setImageSize(ImageSize imageSize) {
 	switch (imageSize) {
 	case NoImage: imageNo = HVC_EXECUTE_IMAGE_NONE; break;
 	case QVGA: imageNo = HVC_EXECUTE_IMAGE_QVGA; break;
 	case QVGA_HALF: imageNo = HVC_EXECUTE_IMAGE_QVGA_HALF; break;
 	}
+}
+
+bool ofxHvcP2::getActiveBody() { return getExecFlag(HVC_ACTIV_BODY_DETECTION); }
+bool ofxHvcP2::getActiveHand() { return getExecFlag(HVC_ACTIV_HAND_DETECTION); }
+bool ofxHvcP2::getActiveFace() { return getExecFlag(HVC_ACTIV_FACE_DETECTION); }
+bool ofxHvcP2::getActiveDirection() { return getExecFlag(HVC_ACTIV_FACE_DIRECTION); }
+bool ofxHvcP2::getActiveAge() { return getExecFlag(HVC_ACTIV_AGE_ESTIMATION); }
+bool ofxHvcP2::getActiveGender() { return getExecFlag(HVC_ACTIV_GENDER_ESTIMATION); }
+bool ofxHvcP2::getActiveGaze() { return getExecFlag(HVC_ACTIV_GAZE_ESTIMATION); }
+bool ofxHvcP2::getActiveBlink() { return getExecFlag(HVC_ACTIV_BLINK_ESTIMATION); }
+bool ofxHvcP2::getActiveExpression() { return getExecFlag(HVC_ACTIV_EXPRESSION_ESTIMATION); }
+ofxHvcP2::ImageSize ofxHvcP2::getImageSize() {
+	return (ImageSize)imageNo;
 }
 
 void ofxHvcP2::setActiveDebugPrint(bool enable) {
