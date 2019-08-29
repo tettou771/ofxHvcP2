@@ -25,12 +25,11 @@ ofxHvcP2::~ofxHvcP2() {
 }
 
 void ofxHvcP2::setup(int _comPortNum) {
+	// serial port initialize
 	int comPortNum;
-
 	S_STAT serialStat;
 	serialStat.com_num = _comPortNum;
 	serialStat.BaudRate = 0;
-
 	if (com_init(&serialStat) == 0) {
 		ofLogError() << "Failed to open COM port.";
 		initialized = false;
@@ -39,6 +38,20 @@ void ofxHvcP2::setup(int _comPortNum) {
 		startThread();
 		initialized = true;
 		ofAddListener(ofEvents().update, this, &ofxHvcP2::update);
+	}
+
+	// STB initialize
+	int returnCode = STB_Init(STB_FUNC_BD | STB_FUNC_DT | STB_FUNC_PT | STB_FUNC_AG | STB_FUNC_GN);
+	if (returnCode != 0) {
+		ofLogError() << "STB_Init Error : " << returnCode;
+	}
+	returnCode = STB_SetTrParam(STB_RETRYCOUNT_DEFAULT, STB_POSSTEADINESS_DEFAULT, STB_SIZESTEADINESS_DEFAULT);
+	if (returnCode != 0) {
+		ofLogError() << "HVCApi(STB_SetTrParam) Error : " << returnCode;
+	}
+	returnCode = STB_SetPeParam(STB_PE_THRESHOLD_DEFAULT, STB_PE_ANGLEUDMIN_DEFAULT, STB_PE_ANGLEUDMAX_DEFAULT, STB_PE_ANGLELRMIN_DEFAULT, STB_PE_ANGLELRMAX_DEFAULT, STB_PE_FRAME_DEFAULT);
+	if (returnCode != 0) {
+		ofLogError() << "HVCApi(STB_SetPeParam) Error : " << returnCode;
 	}
 }
 
@@ -61,6 +74,7 @@ void ofxHvcP2::update(ofEventArgs & e) {
 void ofxHvcP2::close() {
 	if (initialized) {
 		ofRemoveListener(ofEvents().update, this, &ofxHvcP2::update);
+		STB_Final();
 		com_close();
 	}
 }
@@ -115,6 +129,46 @@ void ofxHvcP2::loop() {
 	if (imageNo != HVC_EXECUTE_IMAGE_NONE) {
 		makeCapturedImage();
 	}
+
+	int nSTBFaceCount;
+	STB_FACE *pSTBFaceResult;
+	int nSTBBodyCount;
+	STB_BODY *pSTBBodyResult;
+
+	if (STB_Exec(pHVCResult->executedFunc, pHVCResult, &nSTBFaceCount, &pSTBFaceResult, &nSTBBodyCount, &pSTBBodyResult) == 0) {
+		for (int i = 0; i < nSTBBodyCount; i++) {
+			if (pHVCResult->bdResult.num <= i) break;
+
+			int nIndex = pSTBBodyResult[i].nDetectID;
+			pHVCResult->bdResult.bdResult[nIndex].posX = (short)pSTBBodyResult[i].center.x;
+			pHVCResult->bdResult.bdResult[nIndex].posY = (short)pSTBBodyResult[i].center.y;
+			pHVCResult->bdResult.bdResult[nIndex].size = pSTBBodyResult[i].nSize;
+		}
+		for (int i = 0; i < nSTBFaceCount; i++) {
+			if (pHVCResult->fdResult.num <= i) break;
+
+			int nIndex = pSTBFaceResult[i].nDetectID;
+			pHVCResult->fdResult.fcResult[nIndex].dtResult.posX = (short)pSTBFaceResult[i].center.x;
+			pHVCResult->fdResult.fcResult[nIndex].dtResult.posY = (short)pSTBFaceResult[i].center.y;
+			pHVCResult->fdResult.fcResult[nIndex].dtResult.size = pSTBFaceResult[i].nSize;
+
+			if (pHVCResult->executedFunc & HVC_ACTIV_AGE_ESTIMATION) {
+				pHVCResult->fdResult.fcResult[nIndex].ageResult.confidence += 10000; // During
+				if (pSTBFaceResult[i].age.status >= STB_STATUS_COMPLETE) {
+					pHVCResult->fdResult.fcResult[nIndex].ageResult.age = pSTBFaceResult[i].age.value;
+					pHVCResult->fdResult.fcResult[nIndex].ageResult.confidence += 10000; // Complete
+				}
+			}
+			if (pHVCResult->executedFunc & HVC_ACTIV_GENDER_ESTIMATION) {
+				pHVCResult->fdResult.fcResult[nIndex].genderResult.confidence += 10000; // During
+				if (pSTBFaceResult[i].gender.status >= STB_STATUS_COMPLETE) {
+					pHVCResult->fdResult.fcResult[nIndex].genderResult.gender = pSTBFaceResult[i].gender.value;
+					pHVCResult->fdResult.fcResult[nIndex].genderResult.confidence += 10000; // Complete
+				}
+			}
+		}
+	}
+
 	if (pHVCResult->executedFunc & HVC_ACTIV_BODY_DETECTION) {
 		/* Body Detection result string */
 		bodies.clear();
@@ -128,6 +182,7 @@ void ofxHvcP2::loop() {
 			newBody.position.y = pHVCResult->bdResult.bdResult[i].posY;
 			newBody.size = pHVCResult->bdResult.bdResult[i].size;
 			newBody.confidence = pHVCResult->bdResult.bdResult[i].confidence;
+			//newBody.trackingID = pHVCResult->bdResult.bdResult[i]
 		}
 
 		// body information debug print
@@ -136,6 +191,7 @@ void ofxHvcP2::loop() {
 			for (int bodyIndex = 0; bodyIndex < bodies.size(); ++bodyIndex) {
 				auto &b = bodies[bodyIndex];
 				cout << "index:" << bodyIndex;
+				cout << "trackingID: " << b.trackingID;
 				cout << "\tpos:(" << b.position.x << ", " << b.position.y << ")\tsize:" << b.size << "\tconfidence:" << b.confidence << endl;
 				cout << endl;
 			}
@@ -206,10 +262,13 @@ void ofxHvcP2::loop() {
 				if (-128 == pHVCResult->fdResult.fcResult[i].ageResult.age) {
 					newFace.age = 0;
 					newFace.ageConfidence = 0;
+					newFace.ageStbState = None;
 				}
 				else {
 					newFace.age = pHVCResult->fdResult.fcResult[i].ageResult.age;
-					newFace.ageConfidence = pHVCResult->fdResult.fcResult[i].ageResult.confidence;
+					 int confidence = pHVCResult->fdResult.fcResult[i].ageResult.confidence;
+					 newFace.ageConfidence = getConfidenceWithoutStbState(confidence);
+					 newFace.ageStbState = getStbState(confidence);
 				}
 
 			}
@@ -218,6 +277,7 @@ void ofxHvcP2::loop() {
 				if (-128 == pHVCResult->fdResult.fcResult[i].genderResult.gender) {
 					newFace.gender = UnknownGender;
 					newFace.genderConfidence = 0;
+					newFace.genderStbState = None;
 				}
 				else {
 					if (1 == pHVCResult->fdResult.fcResult[i].genderResult.gender) {
@@ -226,7 +286,9 @@ void ofxHvcP2::loop() {
 					else {
 						newFace.gender = Female;
 					}
-					newFace.genderConfidence = pHVCResult->fdResult.fcResult[i].genderResult.confidence;
+					int confidence = pHVCResult->fdResult.fcResult[i].genderResult.confidence;
+					newFace.genderConfidence = getConfidenceWithoutStbState(confidence);
+					newFace.genderStbState = getStbState(confidence);
 				}
 			}
 			if (pHVCResult->executedFunc & HVC_ACTIV_GAZE_ESTIMATION) {

@@ -4,7 +4,7 @@
 #include "HVCApi/HVCApi.h"
 #include "HVCApi/HVCDef.h"
 #include "HVCApi/HVCExtraUartFunc.h"
-
+#include "STBApi/STBWrap.h"
 
 #define LOGBUFFERSIZE   8192
 
@@ -29,6 +29,15 @@
 #define FACE_POSE_DEFAULT                    0            /* Face Detection facial pose (frontal face)*/
 #define FACE_ANGLE_DEFAULT                   0            /* Face Detection roll angle (}15‹)*/
 
+#define STB_RETRYCOUNT_DEFAULT               2            /* Retry Count for STB */
+#define STB_POSSTEADINESS_DEFAULT           30            /* Position Steadiness for STB */
+#define STB_SIZESTEADINESS_DEFAULT          30            /* Size Steadiness for STB */
+#define STB_PE_FRAME_DEFAULT                10            /* Complete Frame Count for property estimation in STB */
+#define STB_PE_ANGLEUDMIN_DEFAULT          -15            /* Up/Down face angle minimum value for property estimation in STB */
+#define STB_PE_ANGLEUDMAX_DEFAULT           20            /* Up/Down face angle maximum value for property estimation in STB */
+#define STB_PE_ANGLELRMIN_DEFAULT          -20            /* Left/Right face angle minimum value for property estimation in STB */
+#define STB_PE_ANGLELRMAX_DEFAULT           20            /* Left/Right face angle maximum value for property estimation in STB */
+#define STB_PE_THRESHOLD_DEFAULT           300            /* Threshold for property estimation in STB */
 
 class ofxHvcP2 : public ofThread {
 public:
@@ -62,10 +71,16 @@ public:
 		QVGA_HALF
 	};
 
+	enum StbState {
+		None,
+		During,
+		Complete
+	};
+
 	struct vec2i {
 		int x, y;
 		vec2i() : x(0), y(0) {}
-		vec2i(int _x, int _y) : x(_x), y(_y){}
+		vec2i(int _x, int _y) : x(_x), y(_y) {}
 		vec2i operator +(vec2i right) {
 			return vec2i(x + right.x, y + right.y);
 		}
@@ -90,6 +105,7 @@ public:
 		int confidence;
 		vec2i position;
 		int size;
+		int trackingID;
 	};
 
 	struct Hand {
@@ -106,8 +122,10 @@ public:
 		int directionConfidence;
 		int age;
 		int ageConfidence;
+		StbState ageStbState;
 		Gender gender;
 		int genderConfidence;
+		StbState genderStbState;
 		vec2i gaze;
 		int blinkL, blinkR;
 		Expression expression;
@@ -171,6 +189,17 @@ private:
 	INT32 timeOutTime;
 	INT32 execFlag;
 	INT32 imageNo;
+
+	const int stbDuringNum = 10000;
+	const int stbCompleteNum = 20000;
+	StbState getStbState(int confidence) {
+		if (confidence >= stbCompleteNum) return StbState::Complete;
+		else if (confidence >= stbDuringNum) return StbState::During;
+		else return StbState::None;
+	}
+	int getConfidenceWithoutStbState(int confidence) {
+		return confidence % 10000;
+	}
 
 	void threadedFunction();
 	void loop();
