@@ -5,7 +5,7 @@ void ofApp::setup(){
 	// HVC-P2 is connect with Serial
 	// Please check device manager, and set "comPortNum"
 	// Port name is maybe this style "USB Serial Device (COM18)" <- You need this number!
-	int comPortNum = 18;
+	int comPortNum = 11;
 	hvc.setup(comPortNum);
 
 	// Setup hvc parametors.
@@ -58,6 +58,7 @@ void ofApp::draw() {
 			ofDrawRectangle(f.position.x, f.position.y, f.size, f.size);
 			stringstream info;
 			info << "face confidence:" << f.confidence << '\n'
+				<< "trackingID:" << f.trackingId << '\n'
 				<< "direction:(" << f.direction.x << ", " << f.direction.y << ", " << f.direction.z << ") confidence:" << f.directionConfidence << '\n'
 				<< "age:" << f.age << " confidence:" << f.ageConfidence << '\n'
 				<< "gender:" << f.gender << " confidence:" << f.genderConfidence << '\n'
@@ -74,8 +75,9 @@ void ofApp::draw() {
 		for (auto b : bodies) {
 			ofDrawRectangle(b.position.x, b.position.y, b.size, b.size);
 			stringstream info;
-			info << "body confidence:" << b.confidence << '\n';
-			ofDrawBitmapString(info.str(), b.position.x - b.size / 2, b.position.y + b.size / 2 + 12 / hvcScale);
+			info << "body confidence:" << b.confidence << '\n'
+				<< "trackingID:" << b.trackingId << '\n';
+				ofDrawBitmapString(info.str(), b.position.x - b.size / 2, b.position.y + b.size / 2 + 12 / hvcScale);
 		}
 
 		// Hand frames (yellow)

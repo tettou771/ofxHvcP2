@@ -102,6 +102,7 @@ public:
 	};
 
 	struct Body {
+		int trackingId = -1;
 		int confidence;
 		vec2i position;
 		int size;
@@ -115,6 +116,7 @@ public:
 	};
 
 	struct Face {
+		int trackingId = -1;
 		int confidence;
 		vec2i position;
 		int size;

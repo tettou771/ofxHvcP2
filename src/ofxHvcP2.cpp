@@ -182,7 +182,7 @@ void ofxHvcP2::loop() {
 			newBody.position.y = pHVCResult->bdResult.bdResult[i].posY;
 			newBody.size = pHVCResult->bdResult.bdResult[i].size;
 			newBody.confidence = pHVCResult->bdResult.bdResult[i].confidence;
-			//newBody.trackingID = pHVCResult->bdResult.bdResult[i]
+			newBody.trackingId = pSTBBodyResult[i].nTrackingID;
 		}
 
 		// body information debug print
@@ -190,8 +190,8 @@ void ofxHvcP2::loop() {
 			if (debugPrint) cout << "body count : " + ofToString(numBodies) << endl;
 			for (int bodyIndex = 0; bodyIndex < bodies.size(); ++bodyIndex) {
 				auto &b = bodies[bodyIndex];
-				cout << "index:" << bodyIndex;
-				cout << "trackingID: " << b.trackingID;
+				cout << "index:" << bodyIndex << endl;
+				cout << "\ttrackingID: " << b.trackingID << endl;
 				cout << "\tpos:(" << b.position.x << ", " << b.position.y << ")\tsize:" << b.size << "\tconfidence:" << b.confidence << endl;
 				cout << endl;
 			}
@@ -234,8 +234,6 @@ void ofxHvcP2::loop() {
 			HVC_ACTIV_GAZE_ESTIMATION | HVC_ACTIV_BLINK_ESTIMATION |
 			HVC_ACTIV_EXPRESSION_ESTIMATION | HVC_ACTIV_FACE_RECOGNITION)) {
 
-
-
 		int numFaces = pHVCResult->fdResult.num;
 		faces.clear();
 
@@ -249,6 +247,7 @@ void ofxHvcP2::loop() {
 				newFace.position.y = pHVCResult->fdResult.fcResult[i].dtResult.posY;
 				newFace.size = pHVCResult->fdResult.fcResult[i].dtResult.size;
 				newFace.confidence = pHVCResult->fdResult.fcResult[i].dtResult.confidence;
+				newFace.trackingId = pSTBFaceResult[i].nTrackingID;
 			}
 			if (pHVCResult->executedFunc & HVC_ACTIV_FACE_DIRECTION) {
 				/* Face Direction */
@@ -333,8 +332,6 @@ void ofxHvcP2::loop() {
 							newFace.expressionDegree = newFace.expressionScore[exIndex];
 						}
 					}
-
-					//newFace.expressionDegree = pHVCResult->fdResult.fcResult[i].expressionResult.degree;
 				}
 			}
 		}
@@ -344,7 +341,8 @@ void ofxHvcP2::loop() {
 			cout << "face count " << numFaces << endl;
 			for (int faceIndex = 0; faceIndex < faces.size(); ++faceIndex) {
 				auto &f = faces[faceIndex];
-				cout << "index:" << faceIndex;
+				cout << "index:" << faceIndex << endl;
+				cout << "\ttrackingID:" << f.trackingId << endl;
 				cout << "\tpos:(" << f.position.x << ", " << f.position.y << ")\tsize:" << f.size << "\tconfidence:" << f.confidence << endl;
 				cout << "\tdirection:(" << f.direction.x << ", " << f.direction.y << ", " << f.direction.z << ")\tconfidence:" << f.directionConfidence << endl;
 				cout << "\tage:" << f.age << "\tconfidence:" << f.ageConfidence << endl;
