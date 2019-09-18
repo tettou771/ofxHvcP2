@@ -98,13 +98,14 @@ void ofxHvcP2::threadedFunction() {
 	loopBreakFlag = false;
 	while (true) {
 		loop();
-		frameUpdated = true;
-
 		if (loopBreakFlag) {
-			initialized = false;
 			break;
 		}
+		ofSleepMillis(1);
 	}
+
+	close();
+	delete pHVCResult;
 }
 
 void ofxHvcP2::loop() {
@@ -115,12 +116,12 @@ void ofxHvcP2::loop() {
 	int ret = HVC_ExecuteEx(timeOutTime, execFlag, imageNo, pHVCResult, &status);
 	if (ret != 0) {
 		ofLogError() << "HVCApi(HVC_ExecuteEx) Error : " + ofToString(ret);
-		loopBreakFlag = true;
+		//loopBreakFlag = true;
 		return;
 	}
 	if (status != 0) {
 		ofLogError() << "HVC_ExecuteEx Response Error : " + ofToString(ofToHex(status));
-		loopBreakFlag = true;
+		//loopBreakFlag = true;
 		return;
 	}
 
@@ -361,6 +362,7 @@ void ofxHvcP2::loop() {
 		}
 	}
 
+	frameUpdated = true;
 	mutex.unlock();
 }
 
