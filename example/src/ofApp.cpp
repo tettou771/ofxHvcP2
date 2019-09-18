@@ -2,6 +2,8 @@
 
 //--------------------------------------------------------------
 void ofApp::setup(){
+	ofLogToConsole();
+
 	// HVC-P2 is connect with Serial
 	// Please check device manager, and set "comPortNum"
 	// Port name is maybe this style "USB Serial Device (COM18)" <- You need this number!
@@ -17,6 +19,7 @@ void ofApp::setup(){
 	hvc.setActiveExpression(true);
 	hvc.setActiveGaze(true);
 	hvc.setActiveBlink(true);
+	hvc.setActiveFaceRecognition(true);
 
 	// Body and hand must disabled, if you need high frame rate
 	hvc.setActiveBody(true); // too heavy
@@ -59,6 +62,7 @@ void ofApp::draw() {
 			stringstream info;
 			info << "face confidence:" << f.confidence << '\n'
 				<< "trackingID:" << f.trackingId << '\n'
+				<< "recognitionUserID:" << f.recognitionUserId << " confidence:" << f.recognitionConfidence << " (" << int(f.recognitionState) << ")" << '\n'
 				<< "direction:(" << f.direction.x << ", " << f.direction.y << ", " << f.direction.z << ") confidence:" << f.directionConfidence << '\n'
 				<< "age:" << f.age << " confidence:" << f.ageConfidence << '\n'
 				<< "gender:" << f.gender << " confidence:" << f.genderConfidence << '\n'

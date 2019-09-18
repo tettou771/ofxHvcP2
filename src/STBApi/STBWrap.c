@@ -222,7 +222,7 @@ static void GetFrameResult(int inActiveFunc, const HVC_RESULT *inResult, STB_FRA
             outFrameResult->faces.face[i].gender.nConfidence    = -128;
         }
 
-        // ”FØ
+        // Recognition
         if(inActiveFunc & HVC_ACTIV_FACE_RECOGNITION){
             RECOGNITION_RESULT recogRes = inResult->fdResult.fcResult[i].recognitionResult;
             outFrameResult->faces.face[i].recognition.nUID      = recogRes.uid;

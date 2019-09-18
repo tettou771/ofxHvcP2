@@ -10,7 +10,8 @@
 
 #define UART_SETTING_TIMEOUT              1000            /* HVC setting command signal timeout period */
 #define UART_EXECUTE_TIMEOUT              ((10+10+6+3+15+15+1+1+15+10)*1000)
-/* HVC execute command signal timeout period */
+#define UART_SAVE_ALBUM_TIMEOUT           860000          /* HVC save album command signal timeout period */
+#define UART_LOAD_ALBUM_TIMEOUT           860000          /* HVC load album command signal timeout period */
 
 #define SENSOR_ROLL_ANGLE_DEFAULT            0            /* Camera angle setting (0Åã) */
 
@@ -44,6 +45,7 @@ public:
 	ofxHvcP2();
 	~ofxHvcP2();
 
+	void open(int _comPortNum);
 	void setup(int comPortNum);
 	void update(ofEventArgs &e);
 	void close();
@@ -117,6 +119,9 @@ public:
 
 	struct Face {
 		int trackingId = -1;
+		int recognitionUserId = -1;
+		int recognitionConfidence;
+		StbState recognitionState;
 		int confidence;
 		vec2i position;
 		int size;
@@ -153,6 +158,7 @@ public:
 	void setActiveGaze(bool enable);
 	void setActiveBlink(bool enable);
 	void setActiveExpression(bool enable);
+	void setActiveFaceRecognition(bool enable);
 	void setImageSize(ImageSize imageSize);
 
 	bool getActiveBody();
@@ -163,6 +169,7 @@ public:
 	bool getActiveGender();
 	bool getActiveGaze();
 	bool getActiveBlink();
+	bool getActiveFaceRecognition();
 	bool getActiveExpression();
 	ImageSize getImageSize();
 	void setActiveDebugPrint(bool enable);
@@ -173,9 +180,12 @@ public:
 	void getFaces(Faces &out);
 	ofImage &getImage();
 
-	// if frame updated, return true
-	bool isFrameNew();
+	void saveAlbumData(const char* inFileName, int inDataSize, unsigned char* inAlbumData);
+	void loadAlbumData(const char* inFileName, int* outDataSize, unsigned char* outAlbumData);
 
+	// if frame updated
+	bool isFrameNew();
+	// if initialized
 	bool isInitialized();
 
 private:
@@ -216,6 +226,9 @@ private:
 	Faces faces;
 	ofImage capture;
 	ofPixels capturePixels;
+
+	unsigned char * pAlbumData = NULL;
+	INT32 albumDataSize = 0;
 
 	bool frameUpdated, frameNew;
 	bool initialized;

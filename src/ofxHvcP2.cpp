@@ -1,13 +1,13 @@
 #include "ofxHvcP2.h"
 
 
-int UART_SendData(int inDataSize, UINT8 *inData) {
+int UART_SendData(int inDataSize, UINT8* inData) {
 	/* UART send signal */
 	int ret = com_send(inData, inDataSize);
 	return ret;
 }
 
-int UART_ReceiveData(int inTimeOutTime, int inDataSize, UINT8 *outResult) {
+int UART_ReceiveData(int inTimeOutTime, int inDataSize, UINT8* outResult) {
 	/* UART receive signal */
 	int ret = com_recv(inTimeOutTime, outResult, inDataSize);
 	return ret;
@@ -24,38 +24,91 @@ ofxHvcP2::~ofxHvcP2() {
 	close();
 }
 
-void ofxHvcP2::setup(int _comPortNum) {
-	// serial port initialize
-	int comPortNum;
+void ofxHvcP2::open(int _comPortNum) {
+	close();
+
 	S_STAT serialStat;
 	serialStat.com_num = _comPortNum;
-	serialStat.BaudRate = 0;
+	serialStat.BaudRate = 921600;
 	if (com_init(&serialStat) == 0) {
 		ofLogError() << "Failed to open COM port.";
-		initialized = false;
+		close();
 	}
 	else {
 		startThread();
-		initialized = true;
 		ofAddListener(ofEvents().update, this, &ofxHvcP2::update);
-	}
+		initialized = true;
 
-	// STB initialize
-	int returnCode = STB_Init(STB_FUNC_BD | STB_FUNC_DT | STB_FUNC_PT | STB_FUNC_AG | STB_FUNC_GN);
-	if (returnCode != 0) {
-		ofLogError() << "STB_Init Error : " << returnCode;
-	}
-	returnCode = STB_SetTrParam(STB_RETRYCOUNT_DEFAULT, STB_POSSTEADINESS_DEFAULT, STB_SIZESTEADINESS_DEFAULT);
-	if (returnCode != 0) {
-		ofLogError() << "HVCApi(STB_SetTrParam) Error : " << returnCode;
-	}
-	returnCode = STB_SetPeParam(STB_PE_THRESHOLD_DEFAULT, STB_PE_ANGLEUDMIN_DEFAULT, STB_PE_ANGLEUDMAX_DEFAULT, STB_PE_ANGLELRMIN_DEFAULT, STB_PE_ANGLELRMAX_DEFAULT, STB_PE_FRAME_DEFAULT);
-	if (returnCode != 0) {
-		ofLogError() << "HVCApi(STB_SetPeParam) Error : " << returnCode;
+		if (initialized) {
+
+			// STB initialize
+			int returnCode = STB_Init(STB_FUNC_BD | STB_FUNC_DT | STB_FUNC_PT | STB_FUNC_AG | STB_FUNC_GN);
+			if (returnCode != 0) {
+				ofLogError() << "STB_Init Error : " << returnCode;
+			}
+			returnCode = STB_SetTrParam(STB_RETRYCOUNT_DEFAULT, STB_POSSTEADINESS_DEFAULT, STB_SIZESTEADINESS_DEFAULT);
+			if (returnCode != 0) {
+				ofLogError() << "HVCApi(STB_SetTrParam) Error : " << returnCode;
+			}
+			returnCode = STB_SetPeParam(STB_PE_THRESHOLD_DEFAULT, STB_PE_ANGLEUDMIN_DEFAULT, STB_PE_ANGLEUDMAX_DEFAULT, STB_PE_ANGLELRMIN_DEFAULT, STB_PE_ANGLELRMAX_DEFAULT, STB_PE_FRAME_DEFAULT);
+			if (returnCode != 0) {
+				ofLogError() << "HVCApi(STB_SetPeParam) Error : " << returnCode;
+			}
+
+			// Album data allocation
+			pAlbumData = (unsigned char*)malloc(sizeof(unsigned char) * (HVC_ALBUM_SIZE_MAX + 8));
+			if (pAlbumData == NULL) { /* Error processing */
+				ofLogError() << "Memory Allocation Error : " << ofToString(sizeof(unsigned char) * (HVC_ALBUM_SIZE_MAX + 8));
+			}
+
+			// Get Model and Version
+			returnCode = HVC_GetVersion(UART_SETTING_TIMEOUT, &version, &status);
+			if (returnCode != 0) {
+				ofLogError() << "HVCApi(HVC_GetVersion) Error : " << ofToString(returnCode);
+			}
+			if (status != 0) {
+				ofLogError() << "HVC_GetVersion Response Error : " << ofToString(status);
+			}
+
+			auto revision = version.revision[0] + (version.revision[1] << 8) + (version.revision[2] << 16) + (version.revision[3] << 24);
+			ofLog() << "HVC_GetVersion : " << version.string
+				<< ' ' << version.major << '.' << version.minor << '.' << version.relese << '.' << revision;
+
+			// Set Camera Angle
+			auto angleNo = SENSOR_ROLL_ANGLE_DEFAULT;
+			returnCode = HVC_SetCameraAngle(UART_SETTING_TIMEOUT, angleNo, &status);
+			if (returnCode != 0) {
+				ofLogError() << "HVCApi(HVC_SetCameraAngle) Error : " << ofToString(returnCode);
+			}
+			if (status != 0) {
+				ofLogError() << "HVC_SetCameraAngle Response Error : " << ofToString(status);
+			}
+			angleNo = 0xff;
+
+			// Load Album
+			INT32 albumDataSize = 0;
+			loadAlbumData("HVCAlbum.alb", &albumDataSize, pAlbumData);
+			if (albumDataSize != 0) {
+				returnCode = HVC_LoadAlbum(UART_LOAD_ALBUM_TIMEOUT, pAlbumData, albumDataSize, &status);
+				if (returnCode != 0) {
+					ofLogError() << "HVCApi(HVC_LoadAlbum) Error : " << ofToString(returnCode);
+				}
+				if (status != 0) {
+					ofLogError() << "HVC_LoadAlbum Response Error : " << ofToString(status);
+				}
+			}
+		}
 	}
 }
 
-void ofxHvcP2::update(ofEventArgs & e) {
+void ofxHvcP2::setup(int _comPortNum) {
+	// serial port initialize
+	comPortNum = _comPortNum;
+	open(comPortNum);
+
+}
+
+void ofxHvcP2::update(ofEventArgs& e) {
 	if (frameUpdated) {
 		frameNew = true;
 		frameUpdated = false;
@@ -65,9 +118,7 @@ void ofxHvcP2::update(ofEventArgs & e) {
 	}
 
 	if (!initialized) {
-		startThread();
-		initialized = true;
-		ofLog() << "restart ofxHvcP2 thread.";
+		open(comPortNum);
 	}
 }
 
@@ -76,6 +127,8 @@ void ofxHvcP2::close() {
 		ofRemoveListener(ofEvents().update, this, &ofxHvcP2::update);
 		STB_Final();
 		com_close();
+		pAlbumData = NULL;
+		initialized = false;
 	}
 }
 
@@ -108,9 +161,7 @@ void ofxHvcP2::threadedFunction() {
 }
 
 void ofxHvcP2::loop() {
-	/*********************************/
-	/* Execute Detection             */
-	/*********************************/
+	// Execute Detection
 	timeOutTime = 1000; // msec // UART_EXECUTE_TIMEOUT;
 	int ret = HVC_ExecuteEx(timeOutTime, execFlag, imageNo, pHVCResult, &status);
 	if (ret != 0) {
@@ -131,9 +182,9 @@ void ofxHvcP2::loop() {
 	}
 
 	int nSTBFaceCount;
-	STB_FACE *pSTBFaceResult;
+	STB_FACE* pSTBFaceResult;
 	int nSTBBodyCount;
-	STB_BODY *pSTBBodyResult;
+	STB_BODY* pSTBBodyResult;
 
 	if (STB_Exec(pHVCResult->executedFunc, pHVCResult, &nSTBFaceCount, &pSTBFaceResult, &nSTBBodyCount, &pSTBBodyResult) == 0) {
 		for (int i = 0; i < nSTBBodyCount; i++) {
@@ -170,13 +221,13 @@ void ofxHvcP2::loop() {
 	}
 
 	if (pHVCResult->executedFunc & HVC_ACTIV_BODY_DETECTION) {
-		/* Body Detection result string */
+		// Body Detection result string
 		bodies.clear();
 		int numBodies = pHVCResult->bdResult.num;
 
 		for (int i = 0; i < numBodies; i++) {
 			bodies.push_back(Body());
-			Body &newBody = bodies.back();
+			Body& newBody = bodies.back();
 
 			newBody.position.x = pHVCResult->bdResult.bdResult[i].posX;
 			newBody.position.y = pHVCResult->bdResult.bdResult[i].posY;
@@ -189,7 +240,7 @@ void ofxHvcP2::loop() {
 		if (debugPrint) {
 			if (debugPrint) cout << "body count : " + ofToString(numBodies) << endl;
 			for (int bodyIndex = 0; bodyIndex < bodies.size(); ++bodyIndex) {
-				auto &b = bodies[bodyIndex];
+				auto& b = bodies[bodyIndex];
 				cout << "index:" << bodyIndex << endl;
 				cout << "\ttrackingID: " << b.trackingID << endl;
 				cout << "\tpos:(" << b.position.x << ", " << b.position.y << ")\tsize:" << b.size << "\tconfidence:" << b.confidence << endl;
@@ -200,13 +251,13 @@ void ofxHvcP2::loop() {
 	}
 
 	if (pHVCResult->executedFunc & HVC_ACTIV_HAND_DETECTION) {
-		/* Hand Detection result string */
+		// Hand Detection result string
 		hands.clear();
 		int numHands = pHVCResult->hdResult.num;
 
 		for (int i = 0; i < numHands; ++i) {
 			hands.push_back(Hand());
-			auto &newHand = hands.back();
+			auto& newHand = hands.back();
 
 			newHand.position.x = pHVCResult->hdResult.hdResult[i].posX;
 			newHand.position.y = pHVCResult->hdResult.hdResult[i].posY;
@@ -218,7 +269,7 @@ void ofxHvcP2::loop() {
 		if (debugPrint) {
 			if (debugPrint) cout << "hand count : " + ofToString(numHands) << endl;
 			for (int handIndex = 0; handIndex < hands.size(); ++handIndex) {
-				auto &h = hands[handIndex];
+				auto& h = hands[handIndex];
 				cout << "index:" << handIndex;
 				cout << "\tpos:(" << h.position.x << ", " << h.position.y << ")\tsize:" << h.size << "\tconfidence:" << h.confidence << endl;
 				cout << endl;
@@ -227,7 +278,7 @@ void ofxHvcP2::loop() {
 		}
 	}
 
-	/* Face Detection result string */
+	// Face Detection result string
 	if (pHVCResult->executedFunc &
 		(HVC_ACTIV_FACE_DETECTION | HVC_ACTIV_FACE_DIRECTION |
 			HVC_ACTIV_AGE_ESTIMATION | HVC_ACTIV_GENDER_ESTIMATION |
@@ -239,7 +290,7 @@ void ofxHvcP2::loop() {
 
 		for (int i = 0; i < pHVCResult->fdResult.num; i++) {
 			faces.push_back(Face());
-			auto &newFace = faces.back();
+			auto& newFace = faces.back();
 
 			if (pHVCResult->executedFunc & HVC_ACTIV_FACE_DETECTION) {
 				/* Detection */
@@ -247,7 +298,30 @@ void ofxHvcP2::loop() {
 				newFace.position.y = pHVCResult->fdResult.fcResult[i].dtResult.posY;
 				newFace.size = pHVCResult->fdResult.fcResult[i].dtResult.size;
 				newFace.confidence = pHVCResult->fdResult.fcResult[i].dtResult.confidence;
-				newFace.trackingId = pSTBFaceResult[i].nTrackingID;
+
+				if (i < nSTBFaceCount) {
+					newFace.trackingId = pSTBFaceResult[i].nTrackingID;
+				}
+
+				if (pHVCResult->executedFunc & HVC_ACTIV_FACE_RECOGNITION) {
+					/* Recognition */
+					if (-128 == pHVCResult->fdResult.fcResult[i].recognitionResult.uid) {
+						ofLogVerbose() << "Recognition\tRecognition not possible";
+					}
+					else if (-127 == pHVCResult->fdResult.fcResult[i].recognitionResult.uid) {
+						ofLogVerbose() << "Recognition\tNot registered";
+					}
+					else {
+						int userId = pHVCResult->fdResult.fcResult[i].recognitionResult.uid;
+						int rawConfidence = pHVCResult->fdResult.fcResult[i].recognitionResult.confidence;
+						StbState recognitionState = StbState(rawConfidence / 10000);
+						int confidence = rawConfidence % 10000;
+
+						newFace.recognitionUserId = userId;
+						newFace.recognitionConfidence = confidence;
+						newFace.recognitionState = recognitionState;
+					}
+				}
 			}
 			if (pHVCResult->executedFunc & HVC_ACTIV_FACE_DIRECTION) {
 				/* Face Direction */
@@ -265,9 +339,9 @@ void ofxHvcP2::loop() {
 				}
 				else {
 					newFace.age = pHVCResult->fdResult.fcResult[i].ageResult.age;
-					 int confidence = pHVCResult->fdResult.fcResult[i].ageResult.confidence;
-					 newFace.ageConfidence = getConfidenceWithoutStbState(confidence);
-					 newFace.ageStbState = getStbState(confidence);
+					int confidence = pHVCResult->fdResult.fcResult[i].ageResult.confidence;
+					newFace.ageConfidence = getConfidenceWithoutStbState(confidence);
+					newFace.ageStbState = getStbState(confidence);
 				}
 
 			}
@@ -338,15 +412,27 @@ void ofxHvcP2::loop() {
 
 		// face information debug print
 		if (debugPrint) {
+			auto stateToChar = [](StbState state) {
+				switch (state) {
+				None: return 'x'; 
+				During: return '-';
+				Complete: return '*';
+				default: return 'x';
+				}
+			};
+
 			cout << "face count " << numFaces << endl;
 			for (int faceIndex = 0; faceIndex < faces.size(); ++faceIndex) {
-				auto &f = faces[faceIndex];
+				auto& f = faces[faceIndex];
 				cout << "index:" << faceIndex << endl;
 				cout << "\ttrackingID:" << f.trackingId << endl;
+				if (pHVCResult->executedFunc & HVC_ACTIV_FACE_RECOGNITION) {
+					cout << "\trecognitionUserID:" << f.recognitionUserId << "\confidence:" << f.recognitionConfidence << " (" << f.recognitionState << ')' << endl;
+				}
 				cout << "\tpos:(" << f.position.x << ", " << f.position.y << ")\tsize:" << f.size << "\tconfidence:" << f.confidence << endl;
 				cout << "\tdirection:(" << f.direction.x << ", " << f.direction.y << ", " << f.direction.z << ")\tconfidence:" << f.directionConfidence << endl;
-				cout << "\tage:" << f.age << "\tconfidence:" << f.ageConfidence << endl;
-				cout << "\tgender:" << f.gender << "\tconfidence:" << f.genderConfidence << endl;
+				cout << "\tage:" << f.age << "\tconfidence:" << f.ageConfidence << " (" << stateToChar(f.ageStbState) << ')' << endl;
+				cout << "\tgender:" << f.gender << "\tconfidence:" << f.genderConfidence << " (" << stateToChar(f.genderStbState) << ')' <<endl;
 				cout << "\tgaze:(" << f.gaze.x << ", " << f.gaze.y << ")" << endl;
 				cout << "\tblink_L:" << f.blinkL << "\tblink_R:" << f.blinkR << endl;
 				cout << "\texpression:" << f.expression << endl;
@@ -369,7 +455,7 @@ void ofxHvcP2::makeCapturedImage() {
 
 	int width = pHVCResult->image.width;
 	int height = pHVCResult->image.height;
-	if (width == 0 || height == 0) return;
+	if (width <= 0 || height <= 0) return;
 
 	// if image size is not match, reallocate
 	if (capturePixels.getWidth() != width || capturePixels.getHeight() != height) {
@@ -396,12 +482,13 @@ bool ofxHvcP2::getExecFlag(INT32 flag) {
 void ofxHvcP2::setActiveBody(bool enable) { setExecFlag(HVC_ACTIV_BODY_DETECTION, enable); }
 void ofxHvcP2::setActiveHand(bool enable) { setExecFlag(HVC_ACTIV_HAND_DETECTION, enable); }
 void ofxHvcP2::setActiveFace(bool enable) { setExecFlag(HVC_ACTIV_FACE_DETECTION, enable); }
-void ofxHvcP2::setActiveDirection(bool enable) {	setExecFlag(HVC_ACTIV_FACE_DIRECTION, enable);}
-void ofxHvcP2::setActiveAge(bool enable) {	setExecFlag(HVC_ACTIV_AGE_ESTIMATION, enable);}
-void ofxHvcP2::setActiveGender(bool enable) {	setExecFlag(HVC_ACTIV_GENDER_ESTIMATION, enable);}
-void ofxHvcP2::setActiveGaze(bool enable) {	setExecFlag(HVC_ACTIV_GAZE_ESTIMATION, enable);}
-void ofxHvcP2::setActiveBlink(bool enable) {	setExecFlag(HVC_ACTIV_BLINK_ESTIMATION, enable);}
-void ofxHvcP2::setActiveExpression(bool enable) {	setExecFlag(HVC_ACTIV_EXPRESSION_ESTIMATION, enable);}
+void ofxHvcP2::setActiveDirection(bool enable) { setExecFlag(HVC_ACTIV_FACE_DIRECTION, enable); }
+void ofxHvcP2::setActiveAge(bool enable) { setExecFlag(HVC_ACTIV_AGE_ESTIMATION, enable); }
+void ofxHvcP2::setActiveGender(bool enable) { setExecFlag(HVC_ACTIV_GENDER_ESTIMATION, enable); }
+void ofxHvcP2::setActiveGaze(bool enable) { setExecFlag(HVC_ACTIV_GAZE_ESTIMATION, enable); }
+void ofxHvcP2::setActiveBlink(bool enable) { setExecFlag(HVC_ACTIV_BLINK_ESTIMATION, enable); }
+void ofxHvcP2::setActiveExpression(bool enable) { setExecFlag(HVC_ACTIV_EXPRESSION_ESTIMATION, enable); }
+void ofxHvcP2::setActiveFaceRecognition(bool enable) { setExecFlag(HVC_ACTIV_FACE_RECOGNITION, enable); }
 void ofxHvcP2::setImageSize(ImageSize imageSize) {
 	switch (imageSize) {
 	case NoImage: imageNo = HVC_EXECUTE_IMAGE_NONE; break;
@@ -418,6 +505,7 @@ bool ofxHvcP2::getActiveAge() { return getExecFlag(HVC_ACTIV_AGE_ESTIMATION); }
 bool ofxHvcP2::getActiveGender() { return getExecFlag(HVC_ACTIV_GENDER_ESTIMATION); }
 bool ofxHvcP2::getActiveGaze() { return getExecFlag(HVC_ACTIV_GAZE_ESTIMATION); }
 bool ofxHvcP2::getActiveBlink() { return getExecFlag(HVC_ACTIV_BLINK_ESTIMATION); }
+bool ofxHvcP2::getActiveFaceRecognition() { return getExecFlag(HVC_ACTIV_FACE_RECOGNITION); }
 bool ofxHvcP2::getActiveExpression() { return getExecFlag(HVC_ACTIV_EXPRESSION_ESTIMATION); }
 ofxHvcP2::ImageSize ofxHvcP2::getImageSize() {
 	return (ImageSize)imageNo;
@@ -427,26 +515,56 @@ void ofxHvcP2::setActiveDebugPrint(bool enable) {
 	debugPrint = enable;
 }
 
-void ofxHvcP2::getBodies(Bodies &out) {
+void ofxHvcP2::getBodies(Bodies& out) {
 	mutex.lock();
 	out = bodies;
 	mutex.unlock();
 }
 
-void ofxHvcP2::getHands(Hands &out) {
+void ofxHvcP2::getHands(Hands& out) {
 	mutex.lock();
 	out = hands;
 	mutex.unlock();
 }
 
-void ofxHvcP2::getFaces(Faces &out) {
+void ofxHvcP2::getFaces(Faces& out) {
 	mutex.lock();
 	out = faces;
 	mutex.unlock();
 }
 
-ofImage & ofxHvcP2::getImage() {
+ofImage& ofxHvcP2::getImage() {
 	return capture;
+}
+
+void ofxHvcP2::saveAlbumData(const char* inFileName, int inDataSize, unsigned char* inAlbumData) {
+	FILE* pFile = fopen(inFileName, "wb");
+	if (NULL == pFile) {
+		return;
+	}
+
+	fwrite(inAlbumData, inDataSize, 1, pFile);
+
+	fclose(pFile);
+}
+
+void ofxHvcP2::loadAlbumData(const char* inFileName, int* outDataSize, unsigned char* outAlbumData) {
+	FILE* pFile = NULL;
+
+	*outDataSize = 0;
+	pFile = fopen(inFileName, "rb");
+	if (NULL == pFile) {
+		return;
+	}
+
+	fseek(pFile, 0, SEEK_END);
+	*outDataSize = ftell(pFile);
+
+	fseek(pFile, 0, SEEK_SET);
+
+	fread(outAlbumData, *outDataSize, 1, pFile);
+
+	fclose(pFile);
 }
 
 bool ofxHvcP2::isFrameNew() {
