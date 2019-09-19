@@ -35,7 +35,6 @@ void ofxHvcP2::open(int _comPortNum) {
 		close();
 	}
 	else {
-		startThread();
 		ofAddListener(ofEvents().update, this, &ofxHvcP2::update);
 		initialized = true;
 
@@ -72,7 +71,7 @@ void ofxHvcP2::open(int _comPortNum) {
 
 			auto revision = version.revision[0] + (version.revision[1] << 8) + (version.revision[2] << 16) + (version.revision[3] << 24);
 			ofLog() << "HVC_GetVersion : " << version.string
-				<< ' ' << version.major << '.' << version.minor << '.' << version.relese << '.' << revision;
+				<< ' ' << ofToString(version.major) << '.' << ofToString(version.minor) << '.' << ofToString(version.relese) << '.' << revision;
 
 			// Set Camera Angle
 			auto angleNo = SENSOR_ROLL_ANGLE_DEFAULT;
@@ -97,6 +96,7 @@ void ofxHvcP2::open(int _comPortNum) {
 					ofLogError() << "HVC_LoadAlbum Response Error : " << ofToString(status);
 				}
 			}
+			startThread();
 		}
 	}
 }
@@ -166,12 +166,12 @@ void ofxHvcP2::loop() {
 	timeOutTime = 1000; // msec // UART_EXECUTE_TIMEOUT;
 	int ret = HVC_ExecuteEx(timeOutTime, execFlag, imageNo, pHVCResult, &status);
 	if (ret != 0) {
-		ofLogError() << "HVCApi(HVC_ExecuteEx) Error : " + ofToString(ret);
+		ofLogVerbose() << "HVCApi(HVC_ExecuteEx) Error : " + ofToString(ret);
 		//loopBreakFlag = true;
 		return;
 	}
 	if (status != 0) {
-		ofLogError() << "HVC_ExecuteEx Response Error : " + ofToString(ofToHex(status));
+		ofLogVerbose() << "HVC_ExecuteEx Response Error : " + ofToString(ofToHex(status));
 		//loopBreakFlag = true;
 		return;
 	}
